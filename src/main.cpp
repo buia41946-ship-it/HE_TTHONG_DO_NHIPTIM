@@ -9,30 +9,28 @@
 #define SCREEN_HEIGHT 64
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, -1);
 
-// ================= SENSOR =================
 MAX30105 particleSensor;
 
-// ================= TIMER OLED =================
+// cập nhật OLED mỗi 250ms
 unsigned long lastOLED = 0;
 const int OLED_INTERVAL = 250;
 
-// ================= VARIABLES =================
 long lastBeat = 0;
 int stableBPM = 0;
 int stableSpO2 = 0;
 bool isFirstBeat = true; // Cờ chặn lỗi sai số thời gian ở nhịp đập đầu tiên
 
-// ================= MIN MAX =================
+//giá trị min max để tính biên độ AC
 long irMin = 999999, irMax = 0;
 long redMin = 999999, redMax = 0;
 
-// ================= FILTER =================
+// lấy mẫu 5 lần để tính trung bình, giảm nhiễu
 #define N 5 
 int bpmBuffer[N];
 int spo2Buffer[N];
 int idx = 0, countData = 0;
 
-// ================= STABILITY GATE (CỔNG LỌC CHUYỂN ĐỘNG) =================
+// CỔNG LỌC CHUYỂN ĐỘNG
 #define HIST_SIZE 25
 long irHistory[HIST_SIZE];
 long redHistory[HIST_SIZE];
@@ -60,7 +58,7 @@ int smoothData(int bpmVal, int spo2Val) {
   return stableBPM;
 }
 
-// ================= STATUS =================
+// hàm kiểm tra trạng thái nhịp tim và SpO2 để đưa ra cảnh báo
 String getStatus(int bpm, int spo2) {
   if (spo2 > 0 && spo2 < 90) return "LOW OXYGEN";
   if (bpm > 0 && bpm < 50) return "LOW BPM";
@@ -124,12 +122,11 @@ void setup() {
   }
 }
 
-// ================= LOOP =================
 void loop() {
   long currentIR = particleSensor.getIR();
   long currentRed = particleSensor.getRed();
 
-  // Đẩy dữ liệu mới vào mảng lịch sử (Ring Buffer)
+  // Đẩy dữ liệu mới vào mảng lịch sử 
   irHistory[hIdx] = currentIR;
   redHistory[hIdx] = currentRed;
 
@@ -142,8 +139,8 @@ void loop() {
   // Tính độ sai lệch tín hiệu để phát hiện cử động ngón tay
   long diff = abs(currentIR - oldestIR);
 
-  // ================= CỔNG ĐÓNG (KHI KHÔNG CÓ TAY HOẶC ĐANG CỬ ĐỘNG) =================
-  if (currentIR < 50000 || diff > 2500) {
+  // CỔNG ĐÓNG (KHI KHÔNG CÓ TAY HOẶC ĐANG CỬ ĐỘNG)
+  if (currentIR < 50000 || diff > 5000) {
     
     stableBPM = 0;
     stableSpO2 = 0;
@@ -175,7 +172,7 @@ void loop() {
     }
 
   } else {
-    // ================= CỔNG MỞ (NGÓN TAY ĐÃ ĐẶT YÊN TĨNH) =================
+    // CỔNG MỞ (NGÓN TAY ĐÃ ĐẶT YÊN TĨNH) 
     
     // Thu thập biên độ AC bằng dữ liệu an toàn (oldest)
     if (oldestIR > irMax) irMax = oldestIR;
@@ -230,7 +227,7 @@ void loop() {
       redMin = 999999; redMax = 0;
     }
 
-    // ================= HIỂN THỊ OLED =================
+    //  hiển thị OLED khi đang đo nhịp tim
     if (millis() - lastOLED > OLED_INTERVAL) {
       String status = (stableBPM > 0) ? getStatus(stableBPM, stableSpO2) : "CALCULATING...";
       showOLED(stableBPM, stableSpO2, status);
